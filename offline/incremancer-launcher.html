@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Incremancer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0a0a0f;
+      color: #e0e8ff;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .container {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+    h1 {
+      font-size: 48px;
+      letter-spacing: 6px;
+      color: #7bff6e;
+      text-shadow: 0 0 20px rgba(123,255,110,0.5), 0 0 60px rgba(123,255,110,0.2);
+    }
+    p {
+      font-size: 14px;
+      color: rgba(150,200,150,0.6);
+      letter-spacing: 2px;
+    }
+    button {
+      margin-top: 16px;
+      padding: 16px 56px;
+      font-size: 18px;
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+      letter-spacing: 3px;
+      background: transparent;
+      color: #7bff6e;
+      border: 2px solid #7bff6e;
+      border-radius: 4px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 16px rgba(123,255,110,0.2);
+    }
+    button:hover {
+      background: rgba(123,255,110,0.1);
+      box-shadow: 0 0 32px rgba(123,255,110,0.5);
+    }
+    button:active { transform: scale(0.97); }
+    #status {
+      font-size: 12px;
+      color: rgba(123,255,110,0.5);
+      letter-spacing: 2px;
+      min-height: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>INCREMANCER</h1>
+    <p>IDLE NECROMANCER GAME</p>
+    <button onclick="launchGame()">LAUNCH GAME</button>
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const OWNER = 'beastcooper';
+    const REPO = 'MHI_games';
+    const BRANCH = 'master';
+    const GAME_PATH = 'offline/incremancer';
+    const BASE_URL = `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${BRANCH}/${GAME_PATH}`;
+
+    async function launchGame() {
+      const status = document.getElementById('status');
+      status.textContent = 'LOADING...';
+      try {
+        const r = await fetch(BASE_URL + '/index.html');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        let html = await r.text();
+
+        // Rewrite relative URLs to absolute so assets load correctly
+        html = html
+          .replace(/(src|href)=(["'])(?!http|\/\/|data:)(.*?)\2/gi,
+            (_, attr, q, path) => `${attr}=${q}${BASE_URL}/${path}${q}`)
+          .replace(/(src|href):\s*(["'])(?!http|\/\/|data:)(.*?)\2/gi,
+            (_, attr, q, path) => `${attr}: ${q}${BASE_URL}/${path}${q}`)
+          .replace(/url\((?!["']?(?:http|\/\/|data:))(["']?)(.*?)\1\)/gi,
+            (_, q, path) => `url(${q}${BASE_URL}/${path}${q})`);
+
+        document.open();
+        document.write(html);
+        document.close();
+      } catch (err) {
+        status.textContent = 'ERROR: ' + err.message;
+      }
+    }
+  </script>
+</body>
+</html>
