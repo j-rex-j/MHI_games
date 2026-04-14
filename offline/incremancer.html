@@ -72,17 +72,30 @@
   </div>
 
   <script>
-    const BASE_URL = 'https://raw.githubusercontent.com/beastcooper/MHI_games/master/multi-file/incremancer';
+    const OWNER = 'beastcooper';
+    const REPO = 'MHI_games';
+    const BRANCH = 'master';
+    const GAME_PATH = 'multi-file/incremancer';
+
+    // GitHub API returns base64 content — no CORS issues
+    async function fetchFileViaAPI(path) {
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=${BRANCH}`;
+      const r = await fetch(url, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' fetching ' + path);
+      const json = await r.json();
+      // decode base64
+      return atob(json.content.replace(/\n/g, ''));
+    }
 
     async function launchGame() {
       const status = document.getElementById('status');
       status.textContent = 'LOADING...';
       try {
-        const r = await fetch(BASE_URL + '/index.html');
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        let html = await r.text();
+        let html = await fetchFileViaAPI(GAME_PATH + '/index.html');
 
-        // Rewrite relative URLs to absolute so assets load correctly
+        // Replace all relative JS/CSS src/href with absolute jsdelivr URLs
+        const BASE_URL = `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${BRANCH}/${GAME_PATH}`;
+
         html = html
           .replace(/(src|href)=(["'])(?!http|\/\/|data:)(.*?)\2/gi,
             (_, attr, q, path) => `${attr}=${q}${BASE_URL}/${path}${q}`)
