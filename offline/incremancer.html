@@ -71,27 +71,42 @@
   </div>
 
   <script>
-    const BASE_URL = 'https://raw.githubusercontent.com/beastcooper/incremancer/master';
+    const URLS = [
+      'https://raw.githubusercontent.com/beastcooper/incremancer/master',
+      'https://raw.githubusercontent.com/beastcooper/incremancer/main'
+    ];
 
     async function launchGame() {
       const status = document.getElementById('status');
       status.textContent = 'LOADING...';
-      try {
-        const r = await fetch(BASE_URL + '/index.html');
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        let html = await r.text();
 
-        html = html.replace(/(src|href)=(["'])(?!http|\/\/|data:)(.*?)\2/gi,
-          (_, attr, q, path) => `${attr}=${q}${BASE_URL}/${path}${q}`);
-        html = html.replace(/url\((?!["']?(?:http|\/\/|data:))(["']?)(.*?)\1\)/gi,
-          (_, q, path) => `url(${q}${BASE_URL}/${path}${q})`);
+      let html = null;
+      let BASE_URL = null;
 
-        document.open();
-        document.write(html);
-        document.close();
-      } catch (err) {
-        status.textContent = 'ERROR: ' + err.message;
+      for (const url of URLS) {
+        try {
+          const r = await fetch(url + '/index.html');
+          if (r.ok) {
+            html = await r.text();
+            BASE_URL = url;
+            break;
+          }
+        } catch(e) {}
       }
+
+      if (!html) {
+        status.textContent = 'ERROR: Could not reach repo';
+        return;
+      }
+
+      html = html.replace(/(src|href)=(["'])(?!http|\/\/|data:)(.*?)\2/gi,
+        (_, attr, q, path) => `${attr}=${q}${BASE_URL}/${path}${q}`);
+      html = html.replace(/url\((?!["']?(?:http|\/\/|data:))(["']?)(.*?)\1\)/gi,
+        (_, q, path) => `url(${q}${BASE_URL}/${path}${q})`);
+
+      document.open();
+      document.write(html);
+      document.close();
     }
   </script>
 </body>
