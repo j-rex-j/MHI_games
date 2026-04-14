@@ -71,7 +71,7 @@
   </div>
 
   <script>
-    const BASE_URL = 'https://raw.githubusercontent.com/beastcooper/MHI_games/master/multi-file/incremancer';
+    const BASE_URL = 'https://cdn.jsdelivr.net/gh/beastcooper/incremancer@master';
 
     async function launchGame() {
       const status = document.getElementById('status');
@@ -81,7 +81,6 @@
         if (!r.ok) throw new Error('HTTP ' + r.status);
         let html = await r.text();
 
-        // Rewrite relative URLs to absolute so all assets load
         html = html.replace(/(src|href)=(["'])(?!http|\/\/|data:)(.*?)\2/gi,
           (_, attr, q, path) => `${attr}=${q}${BASE_URL}/${path}${q}`);
         html = html.replace(/url\((?!["']?(?:http|\/\/|data:))(["']?)(.*?)\1\)/gi,
