@@ -72,11 +72,7 @@
   </div>
 
   <script>
-    const OWNER = 'beastcooper';
-    const REPO = 'MHI_games';
-    const BRANCH = 'master';
-    const GAME_PATH = 'multi-file/incremancer';
-    const BASE_URL = `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${BRANCH}/${GAME_PATH}`;
+    const BASE_URL = 'https://raw.githubusercontent.com/beastcooper/MHI_games/master/multi-file/incremancer';
 
     async function launchGame() {
       const status = document.getElementById('status');
@@ -90,8 +86,6 @@
         html = html
           .replace(/(src|href)=(["'])(?!http|\/\/|data:)(.*?)\2/gi,
             (_, attr, q, path) => `${attr}=${q}${BASE_URL}/${path}${q}`)
-          .replace(/(src|href):\s*(["'])(?!http|\/\/|data:)(.*?)\2/gi,
-            (_, attr, q, path) => `${attr}: ${q}${BASE_URL}/${path}${q}`)
           .replace(/url\((?!["']?(?:http|\/\/|data:))(["']?)(.*?)\1\)/gi,
             (_, q, path) => `url(${q}${BASE_URL}/${path}${q})`);
 
