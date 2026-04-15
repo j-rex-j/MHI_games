@@ -2,112 +2,192 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Incremancer</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #0a0a0f;
-      font-family: 'Courier New', monospace;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      overflow: hidden;
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; font-family: 'Courier New', monospace; color: #fff; }
+    #loading-screen {
+      position: fixed; inset: 0; background: #0a0a0f;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+      z-index: 1000;
     }
-    .container {
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 24px;
+    h1 { font-size: 48px; letter-spacing: 6px; color: #7bff6e; text-shadow: 0 0 20px rgba(123,255,110,0.5); }
+    .subtitle { font-size: 13px; color: rgba(150,200,150,0.6); letter-spacing: 2px; }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid rgba(123,255,110,0.2);
+      border-top-color: #7bff6e;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
     }
-    h1 {
-      font-size: 48px;
-      letter-spacing: 6px;
-      color: #7bff6e;
-      text-shadow: 0 0 20px rgba(123,255,110,0.5), 0 0 60px rgba(123,255,110,0.2);
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #status { font-size: 12px; color: rgba(123,255,110,0.5); letter-spacing: 2px; }
+    #error-screen {
+      position: fixed; inset: 0; background: #0a0a0f;
+      display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      z-index: 1000; padding: 24px; text-align: center;
     }
-    p {
-      font-size: 14px;
-      color: rgba(150,200,150,0.6);
-      letter-spacing: 2px;
-    }
-    button {
-      margin-top: 16px;
-      padding: 16px 56px;
-      font-size: 18px;
-      font-family: 'Courier New', monospace;
-      font-weight: bold;
-      letter-spacing: 3px;
-      background: transparent;
-      color: #7bff6e;
-      border: 2px solid #7bff6e;
-      border-radius: 4px;
-      cursor: pointer;
-      text-transform: uppercase;
-      transition: all 0.2s ease;
-      box-shadow: 0 0 16px rgba(123,255,110,0.2);
-    }
-    button:hover {
-      background: rgba(123,255,110,0.1);
-      box-shadow: 0 0 32px rgba(123,255,110,0.5);
-    }
-    button:active { transform: scale(0.97); }
-    #status {
-      font-size: 12px;
-      color: rgba(123,255,110,0.5);
-      letter-spacing: 2px;
-      min-height: 18px;
-    }
+    #error-msg { color: #ff6e6e; font-size: 14px; max-width: 400px; line-height: 1.6; }
+    #game-container { width: 100%; height: 100%; display: none; }
+    #game-container iframe { width: 100%; height: 100%; border: none; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>INCREMANCER</h1>
-    <p>IDLE NECROMANCER GAME</p>
-    <button onclick="launchGame()">LAUNCH GAME</button>
-    <div id="status"></div>
-  </div>
 
-  <script>
-    const URLS = [
-      'https://raw.githubusercontent.com/beastcooper/incremancer/master',
-      'https://raw.githubusercontent.com/beastcooper/incremancer/main'
-    ];
+<div id="loading-screen">
+  <h1>INCREMANCER</h1>
+  <div class="subtitle">IDLE NECROMANCER GAME</div>
+  <div class="spinner"></div>
+  <div id="status">LOADING...</div>
+</div>
 
-    async function launchGame() {
-      const status = document.getElementById('status');
-      status.textContent = 'LOADING...';
+<div id="error-screen">
+  <h1 style="font-size:24px;color:#ff6e6e;">LOAD FAILED</h1>
+  <div id="error-msg"></div>
+</div>
 
-      let html = null;
-      let BASE_URL = null;
+<div id="game-container">
+  <iframe id="game-frame" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" allow="autoplay"></iframe>
+</div>
 
-      for (const url of URLS) {
-        try {
-          const r = await fetch(url + '/index.html');
-          if (r.ok) {
-            html = await r.text();
-            BASE_URL = url;
-            break;
-          }
-        } catch(e) {}
-      }
+<script>
+  const OWNER = 'beastcooper';
+  const REPO = 'incremancer';
+  const BRANCH = 'master';
+  const ENTRY = 'index.html';
+  const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/`;
 
-      if (!html) {
-        status.textContent = 'ERROR: Could not reach repo';
-        return;
-      }
+  const status = document.getElementById('status');
 
-      html = html.replace(/(src|href)=(["'])(?!http|\/\/|data:)(.*?)\2/gi,
-        (_, attr, q, path) => `${attr}=${q}${BASE_URL}/${path}${q}`);
-      html = html.replace(/url\((?!["']?(?:http|\/\/|data:))(["']?)(.*?)\1\)/gi,
-        (_, q, path) => `url(${q}${BASE_URL}/${path}${q})`);
+  function setStatus(msg) { status.textContent = msg; }
 
-      document.open();
-      document.write(html);
-      document.close();
+  function showError(msg) {
+    document.getElementById('loading-screen').style.display = 'none';
+    const err = document.getElementById('error-screen');
+    err.style.display = 'flex';
+    document.getElementById('error-msg').textContent = msg;
+  }
+
+  function getMime(path) {
+    const ext = path.split('.').pop().toLowerCase();
+    const mimes = {
+      html: 'text/html', htm: 'text/html', css: 'text/css',
+      js: 'application/javascript', mjs: 'application/javascript',
+      json: 'application/json', xml: 'application/xml',
+      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+      gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp', ico: 'image/x-icon',
+      mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', m4a: 'audio/mp4',
+      mp4: 'video/mp4', webm: 'video/webm',
+      woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf', otf: 'font/otf',
+      txt: 'text/plain',
+    };
+    return mimes[ext] || 'application/octet-stream';
+  }
+
+  function isBinary(path) {
+    return /\.(png|jpg|jpeg|gif|svg|webp|ico|mp3|wav|ogg|m4a|mp4|webm|woff|woff2|ttf|otf)$/i.test(path);
+  }
+
+  function resolvePath(ref, baseDir) {
+    if (!ref || ref.startsWith('data:') || ref.startsWith('blob:') || ref.startsWith('http://') || ref.startsWith('https://') || ref.startsWith('//')) return null;
+    let resolved = ref.startsWith('/') ? ref.slice(1) : baseDir + ref;
+    const parts = resolved.split('/');
+    const stack = [];
+    for (const p of parts) {
+      if (p === '.' || p === '') continue;
+      if (p === '..') stack.pop();
+      else stack.push(p);
     }
-  </script>
+    return stack.join('/');
+  }
+
+  async function fetchText(path) {
+    const r = await fetch(RAW_BASE + path);
+    if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${path}`);
+    return r.text();
+  }
+
+  async function fetchBlobURL(path) {
+    const r = await fetch(RAW_BASE + path);
+    if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${path}`);
+    const blob = await r.blob();
+    return URL.createObjectURL(new Blob([await blob.arrayBuffer()], { type: getMime(path) }));
+  }
+
+  async function loadGame() {
+    try {
+      setStatus('FETCHING INDEX...');
+      let html = await fetchText(ENTRY);
+
+      const entryDir = ENTRY.includes('/') ? ENTRY.substring(0, ENTRY.lastIndexOf('/') + 1) : '';
+
+      // Collect all referenced paths
+      const refs = new Set();
+      const refRegex = /(?:src|href)\s*=\s*["']([^"']+?)["']|url\(\s*["']?([^)"']+?)["']?\s*\)/gi;
+      let m;
+      while ((m = refRegex.exec(html)) !== null) {
+        const ref = m[1] || m[2];
+        const resolved = resolvePath(ref, entryDir);
+        if (resolved) refs.add(resolved);
+      }
+
+      // Fetch all assets
+      const cache = new Map();
+      let loaded = 0;
+      const total = refs.size;
+
+      await Promise.all(Array.from(refs).map(async (path) => {
+        try {
+          if (isBinary(path)) {
+            cache.set(path, await fetchBlobURL(path));
+          } else {
+            const text = await fetchText(path);
+            const blob = new Blob([text], { type: getMime(path) });
+            cache.set(path, URL.createObjectURL(blob));
+          }
+        } catch (e) {
+          console.warn('Could not fetch asset:', path, e.message);
+        }
+        loaded++;
+        setStatus(`LOADING... ${loaded} / ${total}`);
+      }));
+
+      setStatus('BUILDING GAME...');
+
+      // Rewrite all URLs in HTML
+      function rewrite(ref) {
+        const resolved = resolvePath(ref, entryDir);
+        if (resolved && cache.has(resolved)) return cache.get(resolved);
+        return ref;
+      }
+
+      html = html.replace(/(?:src|href)\s*=\s*(["'])([^"']+?)\1/gi, (match, quote, ref) => {
+        const newRef = rewrite(ref);
+        return match.replace(ref, newRef);
+      });
+      html = html.replace(/url\(\s*(["']?)([^)"']+?)\1\s*\)/gi, (match, quote, ref) => {
+        const newRef = rewrite(ref);
+        return `url(${quote}${newRef}${quote})`;
+      });
+
+      // Write into iframe
+      const blob = new Blob([html], { type: 'text/html' });
+      const blobURL = URL.createObjectURL(blob);
+      const iframe = document.getElementById('game-frame');
+      iframe.src = blobURL;
+
+      document.getElementById('loading-screen').style.display = 'none';
+      document.getElementById('game-container').style.display = 'block';
+
+    } catch (err) {
+      console.error(err);
+      showError(err.message);
+    }
+  }
+
+  loadGame();
+</script>
+
 </body>
 </html>
