@@ -1,193 +1,356 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Incremancer</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; font-family: 'Courier New', monospace; color: #fff; }
-    #loading-screen {
-      position: fixed; inset: 0; background: #0a0a0f;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
-      z-index: 1000;
-    }
-    h1 { font-size: 48px; letter-spacing: 6px; color: #7bff6e; text-shadow: 0 0 20px rgba(123,255,110,0.5); }
-    .subtitle { font-size: 13px; color: rgba(150,200,150,0.6); letter-spacing: 2px; }
+    body { font-family: 'Outfit', sans-serif; }
+    code, .mono { font-family: 'JetBrains Mono', monospace; }
+    .game-frame { background: #000; border-radius: 8px; overflow: hidden; }
+    .game-frame iframe { width: 100%; height: 100%; border: none; }
     .spinner {
-      width: 40px; height: 40px;
-      border: 3px solid rgba(123,255,110,0.2);
-      border-top-color: #7bff6e;
+      width: 48px; height: 48px;
+      border: 4px solid rgba(34,211,238,0.2);
+      border-top-color: #22d3ee;
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    #status { font-size: 12px; color: rgba(123,255,110,0.5); letter-spacing: 2px; }
-    #error-screen {
-      position: fixed; inset: 0; background: #0a0a0f;
-      display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-      z-index: 1000; padding: 24px; text-align: center;
-    }
-    #error-msg { color: #ff6e6e; font-size: 14px; max-width: 400px; line-height: 1.6; }
-    #game-container { width: 100%; height: 100%; display: none; }
-    #game-container iframe { width: 100%; height: 100%; border: none; }
+    .pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
+    @keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(34,211,238,0.3); } 50% { box-shadow: 0 0 20px 4px rgba(34,211,238,0.15); } }
+    .toast { animation: toastIn 0.3s ease-out; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
   </style>
-</head>
-<body>
+ </head>
+ <body class="h-full bg-gray-950 text-gray-100" style="height:100vh;display:flex;flex-direction:column;">
 
-<div id="loading-screen">
-  <h1>INCREMANCER</h1>
-  <div class="subtitle">IDLE NECROMANCER GAME</div>
-  <div class="spinner"></div>
-  <div id="status">LOADING...</div>
-</div>
+  <!-- Header -->
+  <header class="flex items-center justify-between px-6 py-4 border-b border-gray-800/60 flex-shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-cyan-500/15 flex items-center justify-center pulse-glow">
+        <i data-lucide="skull" style="width:20px;height:20px;color:#22d3ee"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight">Incremancer</h1>
+        <p class="text-xs text-gray-500 mono">beastcooper/incremancer</p>
+      </div>
+    </div>
+    <div id="header-actions" class="flex items-center gap-2" style="display:none;">
+      <button id="btn-reload" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm font-medium transition-colors">
+        <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Reload
+      </button>
+      <button id="btn-fullscreen" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm font-medium transition-colors">
+        <i data-lucide="maximize" style="width:14px;height:14px"></i>
+      </button>
+    </div>
+  </header>
 
-<div id="error-screen">
-  <h1 style="font-size:24px;color:#ff6e6e;">LOAD FAILED</h1>
-  <div id="error-msg"></div>
-</div>
+  <!-- Loading View -->
+  <div id="loading-view" class="flex-1 flex flex-col items-center justify-center gap-6 p-6">
+    <div class="spinner"></div>
+    <div class="text-center">
+      <p class="text-gray-200 font-semibold text-lg" id="loading-status">Fetching game files...</p>
+      <p class="text-gray-500 text-sm mt-1" id="loading-detail">Connecting to GitHub</p>
+    </div>
+    <div id="progress-bar-wrap" class="w-full max-w-xs bg-gray-800 rounded-full h-1.5 overflow-hidden">
+      <div id="progress-bar" class="h-full bg-cyan-500 transition-all duration-300" style="width:0%"></div>
+    </div>
+  </div>
 
-<div id="game-container">
-  <iframe id="game-frame" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" allow="autoplay"></iframe>
-</div>
+  <!-- Error View -->
+  <div id="error-view" class="flex-1 flex flex-col items-center justify-center gap-4 p-6 text-center" style="display:none;">
+    <div class="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center">
+      <i data-lucide="alert-triangle" style="width:32px;height:32px;color:#f87171"></i>
+    </div>
+    <div>
+      <p class="text-lg font-semibold text-gray-200">Failed to load game</p>
+      <p class="text-sm text-gray-500 mt-1" id="error-detail">Could not fetch files from GitHub.</p>
+    </div>
+    <button id="btn-retry" class="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-sm transition-colors flex items-center gap-2">
+      <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Try Again
+    </button>
+    <p class="text-xs text-gray-600 max-w-sm">
+      Make sure the repository is public and accessible. GitHub's CORS policy may block some requests — try opening this file from a local server if issues persist.
+    </p>
+  </div>
 
-<script>
-  const OWNER = 'beastcooper';
-  const REPO = 'incremancer';
-  const BRANCH = 'master';
-  const ENTRY = 'index.html';
-  const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/`;
+  <!-- Game View -->
+  <div id="game-view" class="flex-1 p-4" style="display:none;">
+    <div class="game-frame w-full h-full">
+      <iframe id="game-iframe"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
+        allow="autoplay"
+        style="width:100%;height:100%;border:none;border-radius:8px;">
+      </iframe>
+    </div>
+  </div>
 
-  const status = document.getElementById('status');
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-xl text-white text-sm font-medium shadow-lg" style="display:none;"></div>
 
-  function setStatus(msg) { status.textContent = msg; }
+  <script>
+    // ── CONFIG ──────────────────────────────────────────────────────────────
+    const REPO_OWNER  = 'beastcooper';
+    const REPO_NAME   = 'incremancer';
+    const BRANCH      = 'master';
+    const ENTRY_POINT = 'index.html';
 
-  function showError(msg) {
-    document.getElementById('loading-screen').style.display = 'none';
-    const err = document.getElementById('error-screen');
-    err.style.display = 'flex';
-    document.getElementById('error-msg').textContent = msg;
-  }
+    // Files to skip (non-functional)
+    const SKIP_PATTERNS = [
+      /^\./, /^README/i, /^LICENSE/i, /^\.git/, /CHANGELOG/i,
+      /^package\.json$/, /^package-lock\.json$/, /^yarn\.lock$/,
+      /^\.github\//, /^node_modules\//, /^\.gitignore$/,
+      /^webpack\.config\./, /^gulpfile\./, /^Gruntfile\./,
+      /^\.travis\.yml$/, /^Makefile$/,
+    ];
 
-  function getMime(path) {
-    const ext = path.split('.').pop().toLowerCase();
-    const mimes = {
-      html: 'text/html', htm: 'text/html', css: 'text/css',
-      js: 'application/javascript', mjs: 'application/javascript',
-      json: 'application/json', xml: 'application/xml',
-      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-      gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp', ico: 'image/x-icon',
-      mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', m4a: 'audio/mp4',
-      mp4: 'video/mp4', webm: 'video/webm',
-      woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf', otf: 'font/otf',
-      txt: 'text/plain',
-    };
-    return mimes[ext] || 'application/octet-stream';
-  }
+    // ── DOM ─────────────────────────────────────────────────────────────────
+    const loadingView  = document.getElementById('loading-view');
+    const errorView    = document.getElementById('error-view');
+    const gameView     = document.getElementById('game-view');
+    const headerActs   = document.getElementById('header-actions');
+    const loadingStatus  = document.getElementById('loading-status');
+    const loadingDetail  = document.getElementById('loading-detail');
+    const progressBar    = document.getElementById('progress-bar');
+    const errorDetail    = document.getElementById('error-detail');
+    const gameIframe     = document.getElementById('game-iframe');
 
-  function isBinary(path) {
-    return /\.(png|jpg|jpeg|gif|svg|webp|ico|mp3|wav|ogg|m4a|mp4|webm|woff|woff2|ttf|otf)$/i.test(path);
-  }
-
-  function resolvePath(ref, baseDir) {
-    if (!ref || ref.startsWith('data:') || ref.startsWith('blob:') || ref.startsWith('http://') || ref.startsWith('https://') || ref.startsWith('//')) return null;
-    let resolved = ref.startsWith('/') ? ref.slice(1) : baseDir + ref;
-    const parts = resolved.split('/');
-    const stack = [];
-    for (const p of parts) {
-      if (p === '.' || p === '') continue;
-      if (p === '..') stack.pop();
-      else stack.push(p);
+    // ── HELPERS ──────────────────────────────────────────────────────────────
+    function showToast(msg, isError) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      toast.className = 'toast fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-xl text-white text-sm font-medium shadow-lg ' +
+        (isError ? 'bg-red-500/90' : 'bg-emerald-500/90');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toast.style.display = 'none', 3500);
     }
+
+    function setProgress(pct) {
+      progressBar.style.width = pct + '%';
+    }
+
+    function getMime(name) {
+      const ext = name.split('.').pop().toLowerCase();
+      return ({
+        html:'text/html', htm:'text/html', css:'text/css',
+        js:'application/javascript', mjs:'application/javascript',
+        json:'application/json', xml:'application/xml',
+        png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg',
+        gif:'image/gif', svg:'image/svg+xml', webp:'image/webp', ico:'image/x-icon',
+        mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', m4a:'audio/mp4',
+        mp4:'video/mp4', webm:'video/webm',
+        woff:'font/woff', woff2:'font/woff2', ttf:'font/ttf', otf:'font/otf',
+        txt:'text/plain', csv:'text/csv', glsl:'text/plain', vert:'text/plain', frag:'text/plain',
+      })[ext] || 'application/octet-stream';
+    }
+
+    function isBinary(path) {
+      return /\.(png|jpg|jpeg|gif|webp|ico|mp3|wav|ogg|m4a|mp4|webm|woff|woff2|ttf|otf)$/i.test(path);
+    }
+
+    function shouldSkip(path) {
+      return SKIP_PATTERNS.some(p => p.test(path));
+    }
+
+    function rawURL(path) {
+      return `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${path}`;
+    }
+
+    // ── FETCH REPO TREE ──────────────────────────────────────────────────────
+    async function fetchTree() {
+      const apiURL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/trees/${BRANCH}?recursive=1`;
+      const res = await fetch(apiURL, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
+      if (!res.ok) throw new Error(`GitHub API ${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      // Only blob (file) entries, skip unwanted patterns
+      return data.tree
+        .filter(item => item.type === 'blob' && !shouldSkip(item.path));
+    }
+
+    // ── FETCH FILE CONTENTS ──────────────────────────────────────────────────
+    async function fetchFiles(files, onProgress) {
+      const fileMap = new Map(); // path -> { text?, blob? }
+      let done = 0;
+
+      // Fetch in parallel batches of 6 to avoid rate limits
+      const BATCH = 6;
+      for (let i = 0; i < files.length; i += BATCH) {
+        const batch = files.slice(i, i + BATCH);
+        await Promise.all(batch.map(async (item) => {
+          try {
+            const url = rawURL(item.path);
+            const res = await fetch(url);
+            if (!res.ok) { console.warn('Skip', item.path, res.status); return; }
+            if (isBinary(item.path)) {
+              const blob = await res.blob();
+              fileMap.set(item.path, { blobURL: URL.createObjectURL(new Blob([await blob.arrayBuffer()], { type: getMime(item.path) })) });
+            } else {
+              const text = await res.text();
+              fileMap.set(item.path, { text });
+            }
+          } catch(e) {
+            console.warn('Failed to fetch', item.path, e);
+          }
+          done++;
+          onProgress(done / files.length * 100);
+        }));
+      }
+      return fileMap;
+    }
+
+    // ── BUILD GAME HTML ──────────────────────────────────────────────────────
+    function buildHTML(fileMap, entryPoint) {
+      const entryData = fileMap.get(entryPoint);
+      if (!entryData || !entryData.text) throw new Error('Entry point not found: ' + entryPoint);
+      let html = entryData.text;
+
+      const entryDir = entryPoint.includes('/') ? entryPoint.substring(0, entryPoint.lastIndexOf('/') + 1) : '';
+
+      // Build URL lookup map
+      const urlMap = {};
+      for (const [path, data] of fileMap) {
+        if (data.blobURL) {
+          urlMap[path] = data.blobURL;
+        } else if (data.text) {
+          // Inline text files as blob URLs
+          const blob = new Blob([data.text], { type: getMime(path) });
+          urlMap[path] = URL.createObjectURL(blob);
+        }
+      }
+
+      function resolvePath(ref) {
+        if (!ref || ref.startsWith('data:') || ref.startsWith('blob:') ||
+            ref.startsWith('http://') || ref.startsWith('https://') ||
+            ref.startsWith('//')) return null;
+        let resolved = ref.startsWith('/') ? ref.slice(1) : entryDir + ref;
+        const parts = resolved.split('/');
+        const stack = [];
+        for (const p of parts) {
+          if (!p || p === '.') continue;
+          if (p === '..') stack.pop();
+          else stack.push(p);
+        }
+        return stack.join('/');
+      }
+
+      function rewrite(match, prefix, quote, ref, suffix) {
+        const r = resolvePath(ref);
+        return (r && urlMap[r]) ? prefix + quote + urlMap[r] + quote + (suffix || '') : match;
+      }
+
+      html = html.replace(/(src\s*=\s*)(["'])([^"'#?]+?)(\2)/gi, rewrite);
+      html = html.replace(/(href\s*=\s*)(["'])([^"'#?]+?)(\2)/gi, rewrite);
+      html = html.replace(/url\(\s*(["']?)([^)"']+?)\1\s*\)/gi, (m, q, ref) => {
+        const r = resolvePath(ref);
+        return (r && urlMap[r]) ? `url(${q}${urlMap[r]}${q})` : m;
+      });
+
+      // Inject fetch/XHR interceptor so dynamic asset loads also work
+      const interceptor = `<script>
+(function(){
+  var urlMap = ${JSON.stringify(urlMap)};
+  var entryDir = ${JSON.stringify(entryDir)};
+  function resolve(ref) {
+    if (!ref || ref.indexOf('data:')===0 || ref.indexOf('blob:')===0 ||
+        ref.indexOf('http://')===0 || ref.indexOf('https://')===0 || ref.indexOf('//')===0) return null;
+    var resolved = ref.charAt(0)==='/' ? ref.slice(1) : entryDir+ref;
+    var parts=resolved.split('/'), stack=[];
+    for(var i=0;i<parts.length;i++){var p=parts[i];if(!p||p==='.')continue;if(p==='..')stack.pop();else stack.push(p);}
     return stack.join('/');
   }
+  function map(url){var r=resolve(url);return(r&&urlMap[r])?urlMap[r]:url;}
+  var oFetch=window.fetch;
+  window.fetch=function(input,init){
+    if(typeof input==='string')input=map(input);
+    else if(input instanceof Request){var m=map(input.url);if(m!==input.url)input=new Request(m,input);}
+    return oFetch.call(this,input,init);
+  };
+  var oOpen=XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open=function(method,url){
+    var a=Array.prototype.slice.call(arguments);a[1]=map(url);return oOpen.apply(this,a);
+  };
+})();
+<\/script>`;
 
-  async function fetchText(path) {
-    const r = await fetch(RAW_BASE + path);
-    if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${path}`);
-    return r.text();
-  }
-
-  async function fetchBlobURL(path) {
-    const r = await fetch(RAW_BASE + path);
-    if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${path}`);
-    const blob = await r.blob();
-    return URL.createObjectURL(new Blob([await blob.arrayBuffer()], { type: getMime(path) }));
-  }
-
-  async function loadGame() {
-    try {
-      setStatus('FETCHING INDEX...');
-      let html = await fetchText(ENTRY);
-
-      const entryDir = ENTRY.includes('/') ? ENTRY.substring(0, ENTRY.lastIndexOf('/') + 1) : '';
-
-      // Collect all referenced paths
-      const refs = new Set();
-      const refRegex = /(?:src|href)\s*=\s*["']([^"']+?)["']|url\(\s*["']?([^)"']+?)["']?\s*\)/gi;
-      let m;
-      while ((m = refRegex.exec(html)) !== null) {
-        const ref = m[1] || m[2];
-        const resolved = resolvePath(ref, entryDir);
-        if (resolved) refs.add(resolved);
+      if (/<head[^>]*>/i.test(html)) {
+        html = html.replace(/(<head[^>]*>)/i, '$1' + interceptor);
+      } else {
+        html = interceptor + html;
       }
 
-      // Fetch all assets
-      const cache = new Map();
-      let loaded = 0;
-      const total = refs.size;
-
-      await Promise.all(Array.from(refs).map(async (path) => {
-        try {
-          if (isBinary(path)) {
-            cache.set(path, await fetchBlobURL(path));
-          } else {
-            const text = await fetchText(path);
-            const blob = new Blob([text], { type: getMime(path) });
-            cache.set(path, URL.createObjectURL(blob));
-          }
-        } catch (e) {
-          console.warn('Could not fetch asset:', path, e.message);
-        }
-        loaded++;
-        setStatus(`LOADING... ${loaded} / ${total}`);
-      }));
-
-      setStatus('BUILDING GAME...');
-
-      // Rewrite all URLs in HTML
-      function rewrite(ref) {
-        const resolved = resolvePath(ref, entryDir);
-        if (resolved && cache.has(resolved)) return cache.get(resolved);
-        return ref;
-      }
-
-      html = html.replace(/(?:src|href)\s*=\s*(["'])([^"']+?)\1/gi, (match, quote, ref) => {
-        const newRef = rewrite(ref);
-        return match.replace(ref, newRef);
-      });
-      html = html.replace(/url\(\s*(["']?)([^)"']+?)\1\s*\)/gi, (match, quote, ref) => {
-        const newRef = rewrite(ref);
-        return `url(${quote}${newRef}${quote})`;
-      });
-
-      // Write into iframe
-      const blob = new Blob([html], { type: 'text/html' });
-      const blobURL = URL.createObjectURL(blob);
-      const iframe = document.getElementById('game-frame');
-      iframe.src = blobURL;
-
-      document.getElementById('loading-screen').style.display = 'none';
-      document.getElementById('game-container').style.display = 'block';
-
-    } catch (err) {
-      console.error(err);
-      showError(err.message);
+      return html;
     }
-  }
 
-  loadGame();
-</script>
+    // ── MAIN LOAD FLOW ───────────────────────────────────────────────────────
+    async function loadGame() {
+      loadingView.style.display = 'flex';
+      errorView.style.display   = 'none';
+      gameView.style.display    = 'none';
+      headerActs.style.display  = 'none';
+      setProgress(0);
 
-</body>
+      try {
+        // 1. Get file tree
+        loadingStatus.textContent = 'Reading repository...';
+        loadingDetail.textContent = `github.com/${REPO_OWNER}/${REPO_NAME}`;
+        const tree = await fetchTree();
+        setProgress(10);
+
+        loadingStatus.textContent = `Downloading ${tree.length} files...`;
+        loadingDetail.textContent = 'Fetching game assets from GitHub';
+
+        // 2. Fetch all files
+        const fileMap = await fetchFiles(tree, (pct) => {
+          setProgress(10 + pct * 0.85);
+          loadingDetail.textContent = `${Math.round(pct)}% of ${tree.length} files`;
+        });
+
+        setProgress(97);
+        loadingStatus.textContent = 'Building game...';
+        loadingDetail.textContent = 'Patching asset URLs';
+
+        // 3. Build HTML
+        const html = buildHTML(fileMap, ENTRY_POINT);
+
+        // 4. Load into iframe
+        const blob = new Blob([html], { type: 'text/html' });
+        gameIframe.src = URL.createObjectURL(blob);
+
+        setProgress(100);
+        await new Promise(r => setTimeout(r, 300));
+
+        loadingView.style.display = 'none';
+        gameView.style.display    = 'flex';
+        headerActs.style.display  = 'flex';
+        showToast('Incremancer loaded!', false);
+
+      } catch (err) {
+        console.error('Load error:', err);
+        loadingView.style.display = 'none';
+        errorView.style.display   = 'flex';
+        errorDetail.textContent   = err.message || 'Unknown error occurred.';
+      }
+    }
+
+    // ── BUTTON HANDLERS ──────────────────────────────────────────────────────
+    document.getElementById('btn-retry').addEventListener('click', loadGame);
+    document.getElementById('btn-reload').addEventListener('click', loadGame);
+    document.getElementById('btn-fullscreen').addEventListener('click', () => {
+      const el = gameIframe;
+      if (el.requestFullscreen) el.requestFullscreen();
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    });
+
+    // ── BOOT ─────────────────────────────────────────────────────────────────
+    lucide.createIcons();
+    loadGame();
+  </script>
+ </body>
 </html>
