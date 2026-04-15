@@ -38,7 +38,7 @@
       </div>
       <div>
         <h1 class="text-lg font-bold tracking-tight">Incremancer</h1>
-        <p class="text-xs text-gray-500 mono">jamesmgittins/incremancer</p>
+        <p class="text-xs text-gray-500 mono">beastcooper/MHI_games</p>
       </div>
     </div>
     <div id="header-actions" class="flex items-center gap-2" style="display:none;">
@@ -96,10 +96,13 @@
 
   <script>
     // ── CONFIG ──────────────────────────────────────────────────────────────
-    const REPO_OWNER  = 'jamesmgittins'; // FIXED: was 'beastcooper' (doesn't exist)
-    const REPO_NAME   = 'incremancer';
+    const REPO_OWNER  = 'beastcooper';
+    const REPO_NAME   = 'MHI_games';
     const BRANCH      = 'master';
-    const ENTRY_POINT = 'index.html';
+    const ENTRY_POINT = 'Multifile/incremancer/index.html';
+
+    // Only load files under the game's subfolder
+    const GAME_PREFIX = 'Multifile/incremancer/';
 
     // Files to skip (non-functional)
     const SKIP_PATTERNS = [
@@ -111,10 +114,10 @@
     ];
 
     // ── DOM ─────────────────────────────────────────────────────────────────
-    const loadingView  = document.getElementById('loading-view');
-    const errorView    = document.getElementById('error-view');
-    const gameView     = document.getElementById('game-view');
-    const headerActs   = document.getElementById('header-actions');
+    const loadingView    = document.getElementById('loading-view');
+    const errorView      = document.getElementById('error-view');
+    const gameView       = document.getElementById('game-view');
+    const headerActs     = document.getElementById('header-actions');
     const loadingStatus  = document.getElementById('loading-status');
     const loadingDetail  = document.getElementById('loading-detail');
     const progressBar    = document.getElementById('progress-bar');
@@ -169,17 +172,19 @@
       const res = await fetch(apiURL, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
       if (!res.ok) throw new Error(`GitHub API ${res.status}: ${res.statusText}`);
       const data = await res.json();
-      // Only blob (file) entries, skip unwanted patterns
-      return data.tree
-        .filter(item => item.type === 'blob' && !shouldSkip(item.path));
+      // Only blob (file) entries under the game subfolder, skip unwanted patterns
+      return data.tree.filter(item =>
+        item.type === 'blob' &&
+        item.path.startsWith(GAME_PREFIX) &&
+        !shouldSkip(item.path)
+      );
     }
 
     // ── FETCH FILE CONTENTS ──────────────────────────────────────────────────
     async function fetchFiles(files, onProgress) {
-      const fileMap = new Map(); // path -> { text?, blob? }
+      const fileMap = new Map();
       let done = 0;
 
-      // Fetch in parallel batches of 6 to avoid rate limits
       const BATCH = 6;
       for (let i = 0; i < files.length; i += BATCH) {
         const batch = files.slice(i, i + BATCH);
@@ -219,7 +224,6 @@
         if (data.blobURL) {
           urlMap[path] = data.blobURL;
         } else if (data.text) {
-          // Inline text files as blob URLs
           const blob = new Blob([data.text], { type: getMime(path) });
           urlMap[path] = URL.createObjectURL(blob);
         }
@@ -297,16 +301,16 @@
       setProgress(0);
 
       try {
-        // 1. Get file tree
         loadingStatus.textContent = 'Reading repository...';
         loadingDetail.textContent = `github.com/${REPO_OWNER}/${REPO_NAME}`;
         const tree = await fetchTree();
         setProgress(10);
 
+        if (tree.length === 0) throw new Error('No files found under Multifile/incremancer/ — check that the repo is public and the path is correct.');
+
         loadingStatus.textContent = `Downloading ${tree.length} files...`;
         loadingDetail.textContent = 'Fetching game assets from GitHub';
 
-        // 2. Fetch all files
         const fileMap = await fetchFiles(tree, (pct) => {
           setProgress(10 + pct * 0.85);
           loadingDetail.textContent = `${Math.round(pct)}% of ${tree.length} files`;
@@ -316,10 +320,8 @@
         loadingStatus.textContent = 'Building game...';
         loadingDetail.textContent = 'Patching asset URLs';
 
-        // 3. Build HTML
         const html = buildHTML(fileMap, ENTRY_POINT);
 
-        // 4. Load into iframe
         const blob = new Blob([html], { type: 'text/html' });
         gameIframe.src = URL.createObjectURL(blob);
 
