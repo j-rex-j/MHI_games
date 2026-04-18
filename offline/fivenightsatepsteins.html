@@ -57,10 +57,7 @@
 <script>
   const OWNER = 'beastcooper';
   const REPO = 'Five-Nights-at-Epstein';
-  const BRANCH = 'master';
   const ENTRY = 'index.html';
-  const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/`;
-  const API_BASE = `https://api.github.com/repos/${OWNER}/${REPO}/git/trees/${BRANCH}?recursive=1`;
 
   const statusEl = document.getElementById('status');
   const progressFill = document.getElementById('progress-fill');
@@ -76,7 +73,7 @@
   }
 
   function getMime(path) {
-    const ext = path.split('.').pop().toLowerCase();
+    const ext = (path.split('.').pop() || '').toLowerCase();
     const mimes = {
       html: 'text/html', htm: 'text/html', css: 'text/css',
       js: 'application/javascript', mjs: 'application/javascript',
@@ -92,7 +89,7 @@
   }
 
   function isBinary(path) {
-    return /\.(png|jpg|jpeg|gif|svg|webp|ico|mp3|wav|ogg|m4a|mp4|webm|woff|woff2|ttf|otf|data|wasm|bin|unity3d)$/i.test(path);
+    return /\.(png|jpg|jpeg|gif|svg|webp|ico|mp3|wav|ogg|m4a|mp4|webm|woff|woff2|ttf|otf|data|wasm|bin)$/i.test(path);
   }
 
   function resolvePath(ref, baseDir) {
@@ -108,91 +105,118 @@
     return stack.join('/');
   }
 
-  async function fetchText(path) {
-    const r = await fetch(RAW_BASE + path);
-    if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${path}`);
-    return r.text();
+  async function fetchWithFallback(path, branches) {
+    for (const branch of branches) {
+      const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${branch}/${path}`;
+      try {
+        const r = await fetch(url);
+        if (r.ok) return { r, branch };
+      } catch(e) {}
+    }
+    throw new Error(`Could not fetch ${path} from any branch`);
   }
 
-  async function fetchBlobURL(path) {
-    const r = await fetch(RAW_BASE + path);
-    if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${path}`);
+  async function getFileList(branch) {
+    // Try GitHub API tree
+    const url = `https://api.github.com/repos/${OWNER}/${REPO}/git/trees/${branch}?recursive=1`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`API ${r.status}`);
+    const data = await r.json();
+    if (!data.tree) throw new Error('No tree in API response');
+    return data.tree.filter(f => f.type === 'blob').map(f => f.path);
+  }
+
+  async function fetchBlobURL(path, branch) {
+    const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${branch}/${path}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const buffer = await r.arrayBuffer();
     return URL.createObjectURL(new Blob([buffer], { type: getMime(path) }));
   }
 
-  // Fetch with concurrency limit
+  async function fetchTextFromBranch(path, branch) {
+    const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${branch}/${path}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.text();
+  }
+
   async function fetchWithLimit(tasks, limit) {
-    const results = new Array(tasks.length);
     let index = 0;
     async function worker() {
       while (index < tasks.length) {
         const i = index++;
-        try { results[i] = await tasks[i](); }
-        catch(e) { results[i] = null; }
+        try { await tasks[i](); } catch(e) {}
       }
     }
     const workers = [];
     for (let i = 0; i < Math.min(limit, tasks.length); i++) workers.push(worker());
     await Promise.all(workers);
-    return results;
   }
 
   async function loadGame() {
     try {
-      // Step 1: get full file tree from GitHub API
-      setStatus('FETCHING FILE LIST...');
-      setProgress(5);
-      const treeRes = await fetch(API_BASE);
-      if (!treeRes.ok) throw new Error(`GitHub API error: HTTP ${treeRes.status}`);
-      const treeData = await treeRes.json();
+      // Step 1: detect branch
+      setStatus('DETECTING BRANCH...');
+      setProgress(3);
 
-      // Only grab blob (file) entries, skip .git internals
-      const files = treeData.tree
-        .filter(f => f.type === 'blob')
-        .map(f => f.path)
-        .filter(f => !f.startsWith('.git'));
-
-      setStatus(`FOUND ${files.length} FILES...`);
-      setProgress(10);
-
-      // Step 2: fetch all files and build blob URL cache
-      const cache = new Map();
-      let loaded = 0;
-      const total = files.length;
-
-      const tasks = files.map(path => async () => {
+      let branch = null;
+      for (const b of ['master', 'main']) {
         try {
-          let url;
-          if (isBinary(path)) {
-            url = await fetchBlobURL(path);
-          } else {
-            const text = await fetchText(path);
-            url = URL.createObjectURL(new Blob([text], { type: getMime(path) }));
-          }
-          cache.set(path, url);
-          // Also store with leading slash variant
-          cache.set('/' + path, url);
-        } catch (e) {
-          console.warn('Failed to fetch:', path, e.message);
-        }
-        loaded++;
-        const pct = 10 + Math.round((loaded / total) * 80);
-        setProgress(pct);
-        setStatus(`LOADING ${loaded} / ${total}`);
-      });
+          const r = await fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/${b}/${ENTRY}`);
+          if (r.ok) { branch = b; break; }
+        } catch(e) {}
+      }
+      if (!branch) throw new Error('Could not find repo. Check that it exists and is public.');
 
-      await fetchWithLimit(tasks, 8);
+      // Step 2: get file list
+      setStatus('FETCHING FILE LIST...');
+      setProgress(8);
+
+      let files = [];
+      try {
+        files = await getFileList(branch);
+        setStatus(`FOUND ${files.length} FILES...`);
+      } catch(e) {
+        // API failed — fall back to scanning HTML only
+        console.warn('GitHub API failed, falling back to HTML scan:', e.message);
+        files = null;
+      }
+
+      setProgress(12);
+
+      // Step 3: fetch all files
+      const cache = new Map();
+      const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${branch}/`;
+
+      if (files) {
+        let loaded = 0;
+        const total = files.length;
+
+        const tasks = files.map(path => async () => {
+          try {
+            const url = RAW_BASE + path;
+            const r = await fetch(url);
+            if (!r.ok) return;
+            const buffer = await r.arrayBuffer();
+            const blobURL = URL.createObjectURL(new Blob([buffer], { type: getMime(path) }));
+            cache.set(path, blobURL);
+          } catch(e) {
+            console.warn('Failed:', path);
+          }
+          loaded++;
+          setProgress(12 + Math.round((loaded / total) * 78));
+          setStatus(`LOADING ${loaded} / ${total}`);
+        });
+
+        await fetchWithLimit(tasks, 8);
+      }
 
       setStatus('BUILDING GAME...');
       setProgress(92);
 
-      // Step 3: rewrite index.html
-      const entryBlobURL = cache.get(ENTRY);
-      if (!entryBlobURL) throw new Error('index.html not found in repo');
-
-      // Fetch the actual text of index.html to rewrite it
-      let html = await fetchText(ENTRY);
+      // Step 4: rewrite index.html
+      let html = await fetchTextFromBranch(ENTRY, branch);
       const entryDir = ENTRY.includes('/') ? ENTRY.substring(0, ENTRY.lastIndexOf('/') + 1) : '';
 
       function rewrite(ref) {
@@ -208,22 +232,20 @@
         return `url(${quote}${rewrite(ref)}${quote})`;
       });
 
-      // Inject a fetch interceptor so runtime dynamic loads also get served from cache
-      const cacheObj = Object.fromEntries(cache);
+      // Step 5: inject runtime interceptor so dynamic loads also work
+      const cacheEntries = JSON.stringify(Object.fromEntries(cache));
       const interceptor = `<script>
 (function() {
-  const cache = ${JSON.stringify(cacheObj)};
+  const cache = ${cacheEntries};
+  const RAW_BASE = ${JSON.stringify(RAW_BASE)};
   function mapURL(url) {
-    if (!url || url.startsWith('blob:') || url.startsWith('data:')) return url;
-    try {
-      const u = new URL(url, location.href);
-      const path = u.pathname.replace(/^\\//, '');
-      if (cache[path]) return cache[path];
-      if (cache['/' + path]) return cache['/' + path];
-    } catch(e) {}
-    // Try stripping leading slash
-    const plain = url.replace(/^\\//, '');
+    if (!url || typeof url !== 'string') return url;
+    if (url.startsWith('blob:') || url.startsWith('data:')) return url;
+    // Strip leading slash for lookup
+    const plain = url.replace(/^\\//, '').replace(/^.*\\/\\/[^/]+\\//, '');
     if (cache[plain]) return cache[plain];
+    // Try as-is
+    if (cache[url]) return cache[url];
     return url;
   }
   const origFetch = window.fetch;
@@ -237,17 +259,21 @@
   };
   const origXHROpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-    return origXHROpen.call(this, method, mapURL(url), ...rest);
+    return origXHROpen.call(this, method, mapURL(String(url)), ...rest);
   };
   const origImage = window.Image;
   window.Image = function(w, h) {
     const img = new origImage(w, h);
     const desc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
-    Object.defineProperty(img, 'src', {
+    if (desc) Object.defineProperty(img, 'src', {
       set(v) { desc.set.call(this, mapURL(v)); },
       get() { return desc.get.call(this); }
     });
     return img;
+  };
+  const origAudio = window.Audio;
+  if (origAudio) window.Audio = function(src) {
+    return new origAudio(src ? mapURL(src) : src);
   };
 })();
 <\/script>`;
@@ -263,8 +289,7 @@
 
       const finalBlob = new Blob([html], { type: 'text/html' });
       const finalURL = URL.createObjectURL(finalBlob);
-      const iframe = document.getElementById('game-frame');
-      iframe.src = finalURL;
+      document.getElementById('game-frame').src = finalURL;
 
       setProgress(100);
       document.getElementById('loading-screen').style.display = 'none';
