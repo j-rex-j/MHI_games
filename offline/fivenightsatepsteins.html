@@ -22,7 +22,9 @@
       animation: spin 1s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    #status { font-size: 12px; color: rgba(255,110,58,0.5); letter-spacing: 2px; }
+    #status { font-size: 12px; color: rgba(255,110,58,0.5); letter-spacing: 2px; text-align: center; max-width: 400px; }
+    #progress-bar { width: 300px; height: 4px; background: rgba(255,110,58,0.15); border-radius: 2px; overflow: hidden; }
+    #progress-fill { height: 100%; background: #ff6e3a; width: 0%; transition: width 0.2s ease; border-radius: 2px; }
     #error-screen {
       position: fixed; inset: 0; background: #0a0a0f;
       display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
@@ -39,6 +41,7 @@
   <h1>FIVE NIGHTS AT<br>EPSTEIN'S</h1>
   <div class="subtitle">SURVIVE THE NIGHT</div>
   <div class="spinner"></div>
+  <div id="progress-bar"><div id="progress-fill"></div></div>
   <div id="status">LOADING...</div>
 </div>
 
@@ -57,10 +60,13 @@
   const BRANCH = 'master';
   const ENTRY = 'index.html';
   const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/`;
+  const API_BASE = `https://api.github.com/repos/${OWNER}/${REPO}/git/trees/${BRANCH}?recursive=1`;
 
-  const status = document.getElementById('status');
+  const statusEl = document.getElementById('status');
+  const progressFill = document.getElementById('progress-fill');
 
-  function setStatus(msg) { status.textContent = msg; }
+  function setStatus(msg) { statusEl.textContent = msg; }
+  function setProgress(pct) { progressFill.style.width = pct + '%'; }
 
   function showError(msg) {
     document.getElementById('loading-screen').style.display = 'none';
@@ -80,13 +86,13 @@
       mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', m4a: 'audio/mp4',
       mp4: 'video/mp4', webm: 'video/webm',
       woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf', otf: 'font/otf',
-      txt: 'text/plain',
+      txt: 'text/plain', data: 'application/octet-stream', wasm: 'application/wasm',
     };
     return mimes[ext] || 'application/octet-stream';
   }
 
   function isBinary(path) {
-    return /\.(png|jpg|jpeg|gif|svg|webp|ico|mp3|wav|ogg|m4a|mp4|webm|woff|woff2|ttf|otf)$/i.test(path);
+    return /\.(png|jpg|jpeg|gif|svg|webp|ico|mp3|wav|ogg|m4a|mp4|webm|woff|woff2|ttf|otf|data|wasm|bin|unity3d)$/i.test(path);
   }
 
   function resolvePath(ref, baseDir) {
@@ -111,49 +117,83 @@
   async function fetchBlobURL(path) {
     const r = await fetch(RAW_BASE + path);
     if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${path}`);
-    const blob = await r.blob();
-    return URL.createObjectURL(new Blob([await blob.arrayBuffer()], { type: getMime(path) }));
+    const buffer = await r.arrayBuffer();
+    return URL.createObjectURL(new Blob([buffer], { type: getMime(path) }));
+  }
+
+  // Fetch with concurrency limit
+  async function fetchWithLimit(tasks, limit) {
+    const results = new Array(tasks.length);
+    let index = 0;
+    async function worker() {
+      while (index < tasks.length) {
+        const i = index++;
+        try { results[i] = await tasks[i](); }
+        catch(e) { results[i] = null; }
+      }
+    }
+    const workers = [];
+    for (let i = 0; i < Math.min(limit, tasks.length); i++) workers.push(worker());
+    await Promise.all(workers);
+    return results;
   }
 
   async function loadGame() {
     try {
-      setStatus('FETCHING GAME...');
-      let html = await fetchText(ENTRY);
+      // Step 1: get full file tree from GitHub API
+      setStatus('FETCHING FILE LIST...');
+      setProgress(5);
+      const treeRes = await fetch(API_BASE);
+      if (!treeRes.ok) throw new Error(`GitHub API error: HTTP ${treeRes.status}`);
+      const treeData = await treeRes.json();
 
-      const entryDir = ENTRY.includes('/') ? ENTRY.substring(0, ENTRY.lastIndexOf('/') + 1) : '';
+      // Only grab blob (file) entries, skip .git internals
+      const files = treeData.tree
+        .filter(f => f.type === 'blob')
+        .map(f => f.path)
+        .filter(f => !f.startsWith('.git'));
 
-      // Collect all referenced paths
-      const refs = new Set();
-      const refRegex = /(?:src|href)\s*=\s*["']([^"']+?)["']|url\(\s*["']?([^)"']+?)["']?\s*\)/gi;
-      let m;
-      while ((m = refRegex.exec(html)) !== null) {
-        const ref = m[1] || m[2];
-        const resolved = resolvePath(ref, entryDir);
-        if (resolved) refs.add(resolved);
-      }
+      setStatus(`FOUND ${files.length} FILES...`);
+      setProgress(10);
 
-      // Fetch all assets
+      // Step 2: fetch all files and build blob URL cache
       const cache = new Map();
       let loaded = 0;
-      const total = refs.size;
+      const total = files.length;
 
-      await Promise.all(Array.from(refs).map(async (path) => {
+      const tasks = files.map(path => async () => {
         try {
+          let url;
           if (isBinary(path)) {
-            cache.set(path, await fetchBlobURL(path));
+            url = await fetchBlobURL(path);
           } else {
             const text = await fetchText(path);
-            const blob = new Blob([text], { type: getMime(path) });
-            cache.set(path, URL.createObjectURL(blob));
+            url = URL.createObjectURL(new Blob([text], { type: getMime(path) }));
           }
+          cache.set(path, url);
+          // Also store with leading slash variant
+          cache.set('/' + path, url);
         } catch (e) {
-          console.warn('Could not fetch asset:', path, e.message);
+          console.warn('Failed to fetch:', path, e.message);
         }
         loaded++;
-        setStatus(`LOADING... ${loaded} / ${total}`);
-      }));
+        const pct = 10 + Math.round((loaded / total) * 80);
+        setProgress(pct);
+        setStatus(`LOADING ${loaded} / ${total}`);
+      });
+
+      await fetchWithLimit(tasks, 8);
 
       setStatus('BUILDING GAME...');
+      setProgress(92);
+
+      // Step 3: rewrite index.html
+      const entryBlobURL = cache.get(ENTRY);
+      if (!entryBlobURL) throw new Error('index.html not found in repo');
+
+      // Fetch the actual text of index.html to rewrite it
+      let html = await fetchText(ENTRY);
+      const entryDir = ENTRY.includes('/') ? ENTRY.substring(0, ENTRY.lastIndexOf('/') + 1) : '';
 
       function rewrite(ref) {
         const resolved = resolvePath(ref, entryDir);
@@ -168,11 +208,65 @@
         return `url(${quote}${rewrite(ref)}${quote})`;
       });
 
-      const blob = new Blob([html], { type: 'text/html' });
-      const blobURL = URL.createObjectURL(blob);
-      const iframe = document.getElementById('game-frame');
-      iframe.src = blobURL;
+      // Inject a fetch interceptor so runtime dynamic loads also get served from cache
+      const cacheObj = Object.fromEntries(cache);
+      const interceptor = `<script>
+(function() {
+  const cache = ${JSON.stringify(cacheObj)};
+  function mapURL(url) {
+    if (!url || url.startsWith('blob:') || url.startsWith('data:')) return url;
+    try {
+      const u = new URL(url, location.href);
+      const path = u.pathname.replace(/^\\//, '');
+      if (cache[path]) return cache[path];
+      if (cache['/' + path]) return cache['/' + path];
+    } catch(e) {}
+    // Try stripping leading slash
+    const plain = url.replace(/^\\//, '');
+    if (cache[plain]) return cache[plain];
+    return url;
+  }
+  const origFetch = window.fetch;
+  window.fetch = function(input, init) {
+    if (typeof input === 'string') input = mapURL(input);
+    else if (input instanceof Request) {
+      const mapped = mapURL(input.url);
+      if (mapped !== input.url) input = new Request(mapped, input);
+    }
+    return origFetch.call(this, input, init);
+  };
+  const origXHROpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+    return origXHROpen.call(this, method, mapURL(url), ...rest);
+  };
+  const origImage = window.Image;
+  window.Image = function(w, h) {
+    const img = new origImage(w, h);
+    const desc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+    Object.defineProperty(img, 'src', {
+      set(v) { desc.set.call(this, mapURL(v)); },
+      get() { return desc.get.call(this); }
+    });
+    return img;
+  };
+})();
+<\/script>`;
 
+      if (/<head[^>]*>/i.test(html)) {
+        html = html.replace(/(<head[^>]*>)/i, '$1' + interceptor);
+      } else {
+        html = interceptor + html;
+      }
+
+      setProgress(98);
+      setStatus('STARTING GAME...');
+
+      const finalBlob = new Blob([html], { type: 'text/html' });
+      const finalURL = URL.createObjectURL(finalBlob);
+      const iframe = document.getElementById('game-frame');
+      iframe.src = finalURL;
+
+      setProgress(100);
       document.getElementById('loading-screen').style.display = 'none';
       document.getElementById('game-container').style.display = 'block';
 
