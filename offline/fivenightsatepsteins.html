@@ -6,303 +6,308 @@
   <title>Five Nights at Epstein's</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; font-family: 'Courier New', monospace; color: #fff; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Courier New', monospace; color: #fff; }
     #loading-screen {
-      position: fixed; inset: 0; background: #0a0a0f;
+      position: fixed; inset: 0; background: #000;
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
       z-index: 1000;
     }
-    h1 { font-size: 36px; letter-spacing: 4px; color: #ff6e3a; text-shadow: 0 0 20px rgba(255,110,58,0.5); text-align: center; }
-    .subtitle { font-size: 13px; color: rgba(200,150,120,0.6); letter-spacing: 2px; }
-    .spinner {
-      width: 40px; height: 40px;
-      border: 3px solid rgba(255,110,58,0.2);
-      border-top-color: #ff6e3a;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
+    h1 { font-size: 32px; letter-spacing: 4px; color: #ff6e3a; text-shadow: 0 0 20px rgba(255,110,58,0.5); text-align: center; line-height: 1.3; }
+    .subtitle { font-size: 12px; color: rgba(200,150,120,0.6); letter-spacing: 3px; }
+    .spinner { width: 40px; height: 40px; border: 3px solid rgba(255,110,58,0.2); border-top-color: #ff6e3a; border-radius: 50%; animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    #status { font-size: 12px; color: rgba(255,110,58,0.5); letter-spacing: 2px; text-align: center; max-width: 400px; }
-    #progress-bar { width: 300px; height: 4px; background: rgba(255,110,58,0.15); border-radius: 2px; overflow: hidden; }
-    #progress-fill { height: 100%; background: #ff6e3a; width: 0%; transition: width 0.2s ease; border-radius: 2px; }
-    #error-screen {
-      position: fixed; inset: 0; background: #0a0a0f;
-      display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-      z-index: 1000; padding: 24px; text-align: center;
-    }
-    #error-msg { color: #ff6e6e; font-size: 14px; max-width: 400px; line-height: 1.6; }
+    #status { font-size: 11px; color: rgba(255,110,58,0.6); letter-spacing: 2px; text-align: center; max-width: 360px; }
+    #progress-bar { width: 300px; height: 3px; background: rgba(255,110,58,0.15); border-radius: 2px; overflow: hidden; }
+    #progress-fill { height: 100%; background: #ff6e3a; width: 0%; transition: width 0.15s ease; border-radius: 2px; }
+    #error-screen { position: fixed; inset: 0; background: #000; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 1000; padding: 24px; text-align: center; }
+    #error-msg { color: #ff6e6e; font-size: 13px; max-width: 400px; line-height: 1.7; }
     #game-container { width: 100%; height: 100%; display: none; }
-    #game-container iframe { width: 100%; height: 100%; border: none; }
+    #game-frame { width: 100%; height: 100%; border: none; display: block; }
   </style>
 </head>
 <body>
 
 <div id="loading-screen">
-  <h1>FIVE NIGHTS AT<br>EPSTEIN'S</h1>
+  <h1>FIVE NIGHTS<br>AT EPSTEIN'S</h1>
   <div class="subtitle">SURVIVE THE NIGHT</div>
   <div class="spinner"></div>
   <div id="progress-bar"><div id="progress-fill"></div></div>
-  <div id="status">LOADING...</div>
+  <div id="status">CONNECTING TO SERVER...</div>
 </div>
 
 <div id="error-screen">
-  <h1 style="font-size:24px;color:#ff6e6e;">LOAD FAILED</h1>
+  <h1 style="font-size:22px;color:#ff6e6e;">FAILED TO LOAD</h1>
   <div id="error-msg"></div>
 </div>
 
 <div id="game-container">
-  <iframe id="game-frame" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" allow="autoplay"></iframe>
+  <iframe id="game-frame" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals" allow="autoplay *"></iframe>
 </div>
 
 <script>
-  const OWNER = 'beastcooper';
-  const REPO = 'Five-Nights-at-Epstein';
-  const ENTRY = 'index.html';
+const OWNER = 'beastcooper';
+const REPO  = 'Five-Nights-at-Epstein';
+const ENTRY = 'index.html';
 
-  const statusEl = document.getElementById('status');
-  const progressFill = document.getElementById('progress-fill');
+const statusEl = document.getElementById('status');
+const fillEl   = document.getElementById('progress-fill');
 
-  function setStatus(msg) { statusEl.textContent = msg; }
-  function setProgress(pct) { progressFill.style.width = pct + '%'; }
+function setStatus(msg) { statusEl.textContent = msg; }
+function setProgress(p) { fillEl.style.width = Math.min(100, p) + '%'; }
 
-  function showError(msg) {
-    document.getElementById('loading-screen').style.display = 'none';
-    const err = document.getElementById('error-screen');
-    err.style.display = 'flex';
-    document.getElementById('error-msg').textContent = msg;
+function showError(msg) {
+  document.getElementById('loading-screen').style.display = 'none';
+  const s = document.getElementById('error-screen');
+  s.style.display = 'flex';
+  document.getElementById('error-msg').textContent = msg;
+}
+
+function getMime(path) {
+  const ext = (path.split('?')[0].split('.').pop() || '').toLowerCase();
+  return ({
+    html:'text/html', htm:'text/html',
+    css:'text/css',
+    js:'application/javascript', mjs:'application/javascript',
+    json:'application/json',
+    png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg',
+    gif:'image/gif', svg:'image/svg+xml', webp:'image/webp', ico:'image/x-icon',
+    mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', m4a:'audio/mp4',
+    mp4:'video/mp4', webm:'video/webm',
+    woff:'font/woff', woff2:'font/woff2', ttf:'font/ttf', otf:'font/otf',
+    wasm:'application/wasm',
+  })[ext] || 'application/octet-stream';
+}
+
+function isText(path) {
+  return /\.(html?|css|js|mjs|json|svg|xml|txt|glsl|vert|frag)$/i.test(path);
+}
+
+function resolvePath(ref, baseDir) {
+  if (!ref) return null;
+  const stripped = ref.split('?')[0].split('#')[0];
+  if (!stripped || /^(data:|blob:|https?:|\/\/)/.test(stripped)) return null;
+  let resolved = stripped.startsWith('/') ? stripped.slice(1) : baseDir + stripped;
+  const parts = resolved.split('/');
+  const stack = [];
+  for (const p of parts) {
+    if (p === '.' || p === '') continue;
+    if (p === '..') stack.pop();
+    else stack.push(p);
   }
+  return stack.join('/');
+}
 
-  function getMime(path) {
-    const ext = (path.split('.').pop() || '').toLowerCase();
-    const mimes = {
-      html: 'text/html', htm: 'text/html', css: 'text/css',
-      js: 'application/javascript', mjs: 'application/javascript',
-      json: 'application/json', xml: 'application/xml',
-      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-      gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp', ico: 'image/x-icon',
-      mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', m4a: 'audio/mp4',
-      mp4: 'video/mp4', webm: 'video/webm',
-      woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf', otf: 'font/otf',
-      txt: 'text/plain', data: 'application/octet-stream', wasm: 'application/wasm',
-    };
-    return mimes[ext] || 'application/octet-stream';
-  }
-
-  function isBinary(path) {
-    return /\.(png|jpg|jpeg|gif|svg|webp|ico|mp3|wav|ogg|m4a|mp4|webm|woff|woff2|ttf|otf|data|wasm|bin)$/i.test(path);
-  }
-
-  function resolvePath(ref, baseDir) {
-    if (!ref || ref.startsWith('data:') || ref.startsWith('blob:') || ref.startsWith('http://') || ref.startsWith('https://') || ref.startsWith('//')) return null;
-    let resolved = ref.startsWith('/') ? ref.slice(1) : baseDir + ref;
-    const parts = resolved.split('/');
-    const stack = [];
-    for (const p of parts) {
-      if (p === '.' || p === '') continue;
-      if (p === '..') stack.pop();
-      else stack.push(p);
-    }
-    return stack.join('/');
-  }
-
-  async function fetchWithFallback(path, branches) {
-    for (const branch of branches) {
-      const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${branch}/${path}`;
-      try {
-        const r = await fetch(url);
-        if (r.ok) return { r, branch };
-      } catch(e) {}
-    }
-    throw new Error(`Could not fetch ${path} from any branch`);
-  }
-
-  async function getFileList(branch) {
-    // Try GitHub API tree
-    const url = `https://api.github.com/repos/${OWNER}/${REPO}/git/trees/${branch}?recursive=1`;
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`API ${r.status}`);
-    const data = await r.json();
-    if (!data.tree) throw new Error('No tree in API response');
-    return data.tree.filter(f => f.type === 'blob').map(f => f.path);
-  }
-
-  async function fetchBlobURL(path, branch) {
-    const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${branch}/${path}`;
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const buffer = await r.arrayBuffer();
-    return URL.createObjectURL(new Blob([buffer], { type: getMime(path) }));
-  }
-
-  async function fetchTextFromBranch(path, branch) {
-    const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${branch}/${path}`;
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.text();
-  }
-
-  async function fetchWithLimit(tasks, limit) {
-    let index = 0;
-    async function worker() {
-      while (index < tasks.length) {
-        const i = index++;
-        try { await tasks[i](); } catch(e) {}
-      }
-    }
-    const workers = [];
-    for (let i = 0; i < Math.min(limit, tasks.length); i++) workers.push(worker());
-    await Promise.all(workers);
-  }
-
-  async function loadGame() {
+async function detectBranch() {
+  for (const b of ['master', 'main']) {
     try {
-      // Step 1: detect branch
-      setStatus('DETECTING BRANCH...');
-      setProgress(3);
+      const r = await fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/${b}/${ENTRY}`);
+      if (r.ok) return b;
+    } catch(e) {}
+  }
+  throw new Error('Cannot reach repo. Make sure it is public.');
+}
 
-      let branch = null;
-      for (const b of ['master', 'main']) {
-        try {
-          const r = await fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/${b}/${ENTRY}`);
-          if (r.ok) { branch = b; break; }
-        } catch(e) {}
-      }
-      if (!branch) throw new Error('Could not find repo. Check that it exists and is public.');
+async function getAllFiles(branch) {
+  const r = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/git/trees/${branch}?recursive=1`);
+  if (!r.ok) throw new Error(`GitHub API returned ${r.status}`);
+  const data = await r.json();
+  if (!Array.isArray(data.tree)) throw new Error('Unexpected API response');
+  return data.tree.filter(f => f.type === 'blob').map(f => f.path);
+}
 
-      // Step 2: get file list
-      setStatus('FETCHING FILE LIST...');
-      setProgress(8);
+async function fetchAll(files, branch, onProgress) {
+  const RAW = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${branch}/`;
+  const cache = new Map();
+  let done = 0;
 
-      let files = [];
+  // fetch in batches of 10
+  const BATCH = 10;
+  for (let i = 0; i < files.length; i += BATCH) {
+    const batch = files.slice(i, i + BATCH);
+    await Promise.all(batch.map(async path => {
       try {
-        files = await getFileList(branch);
-        setStatus(`FOUND ${files.length} FILES...`);
+        const r = await fetch(RAW + path);
+        if (!r.ok) { done++; onProgress(done, files.length); return; }
+        const buf = await r.arrayBuffer();
+        const mime = getMime(path);
+        const blobUrl = URL.createObjectURL(new Blob([buf], { type: mime }));
+        cache.set(path, { blobUrl, buf, mime, isText: isText(path) });
       } catch(e) {
-        // API failed — fall back to scanning HTML only
-        console.warn('GitHub API failed, falling back to HTML scan:', e.message);
-        files = null;
+        console.warn('skip:', path);
       }
+      done++;
+      onProgress(done, files.length);
+    }));
+  }
+  return cache;
+}
 
-      setProgress(12);
+function rewriteHtml(html, cache, entryDir) {
+  function rw(ref) {
+    const resolved = resolvePath(ref, entryDir);
+    if (resolved && cache.has(resolved)) return cache.get(resolved).blobUrl;
+    return ref;
+  }
 
-      // Step 3: fetch all files
-      const cache = new Map();
-      const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${branch}/`;
+  // rewrite src= and href=
+  html = html.replace(/((?:src|href)\s*=\s*)(["'])([^"'#?]+?)(\2)/gi, (m, attr, q, ref, q2) => {
+    const n = rw(ref);
+    return n !== ref ? attr + q + n + q2 : m;
+  });
 
-      if (files) {
-        let loaded = 0;
-        const total = files.length;
+  // rewrite url() in inline styles
+  html = html.replace(/url\(\s*(["']?)([^)"']+?)\1\s*\)/gi, (m, q, ref) => {
+    const n = rw(ref);
+    return n !== ref ? `url(${q}${n}${q})` : m;
+  });
 
-        const tasks = files.map(path => async () => {
-          try {
-            const url = RAW_BASE + path;
-            const r = await fetch(url);
-            if (!r.ok) return;
-            const buffer = await r.arrayBuffer();
-            const blobURL = URL.createObjectURL(new Blob([buffer], { type: getMime(path) }));
-            cache.set(path, blobURL);
-          } catch(e) {
-            console.warn('Failed:', path);
-          }
-          loaded++;
-          setProgress(12 + Math.round((loaded / total) * 78));
-          setStatus(`LOADING ${loaded} / ${total}`);
-        });
+  return html;
+}
 
-        await fetchWithLimit(tasks, 8);
-      }
+async function loadGame() {
+  try {
+    setStatus('DETECTING BRANCH...');
+    setProgress(3);
+    const branch = await detectBranch();
 
-      setStatus('BUILDING GAME...');
-      setProgress(92);
+    setStatus('FETCHING FILE LIST...');
+    setProgress(7);
+    const files = await getAllFiles(branch);
+    setStatus(`FOUND ${files.length} FILES — DOWNLOADING...`);
 
-      // Step 4: rewrite index.html
-      let html = await fetchTextFromBranch(ENTRY, branch);
-      const entryDir = ENTRY.includes('/') ? ENTRY.substring(0, ENTRY.lastIndexOf('/') + 1) : '';
+    const cache = await fetchAll(files, branch, (done, total) => {
+      const pct = 7 + Math.round((done / total) * 83);
+      setProgress(pct);
+      setStatus(`LOADING ${done} / ${total}`);
+    });
 
-      function rewrite(ref) {
-        const resolved = resolvePath(ref, entryDir);
-        if (resolved && cache.has(resolved)) return cache.get(resolved);
-        return ref;
-      }
+    setStatus('BUILDING GAME...');
+    setProgress(92);
 
-      html = html.replace(/(?:src|href)\s*=\s*(["'])([^"']+?)\1/gi, (match, quote, ref) => {
-        return match.replace(ref, rewrite(ref));
-      });
-      html = html.replace(/url\(\s*(["']?)([^)"']+?)\1\s*\)/gi, (match, quote, ref) => {
-        return `url(${quote}${rewrite(ref)}${quote})`;
-      });
+    // Get index.html text
+    const entryInfo = cache.get(ENTRY);
+    if (!entryInfo) throw new Error('index.html not found in repo');
+    const decoder = new TextDecoder();
+    let html = decoder.decode(entryInfo.buf);
+    const entryDir = ENTRY.includes('/') ? ENTRY.slice(0, ENTRY.lastIndexOf('/') + 1) : '';
 
-      // Step 5: inject runtime interceptor so dynamic loads also work
-      const cacheEntries = JSON.stringify(Object.fromEntries(cache));
-      const interceptor = `<script>
-(function() {
-  const cache = ${cacheEntries};
-  const RAW_BASE = ${JSON.stringify(RAW_BASE)};
-  function mapURL(url) {
-    if (!url || typeof url !== 'string') return url;
-    if (url.startsWith('blob:') || url.startsWith('data:')) return url;
-    // Strip leading slash for lookup
-    const plain = url.replace(/^\\//, '').replace(/^.*\\/\\/[^/]+\\//, '');
-    if (cache[plain]) return cache[plain];
-    // Try as-is
-    if (cache[url]) return cache[url];
+    // Remove any <base> tag so we control all URLs
+    html = html.replace(/<base[^>]*>/gi, '');
+
+    // Rewrite all static references
+    html = rewriteHtml(html, cache, entryDir);
+
+    // Build JS interceptor so dynamic loads (Image, fetch, XHR) also work
+    const mapObj = {};
+    cache.forEach((v, k) => { mapObj[k] = v.blobUrl; });
+
+    const interceptor = `<script>
+(function(){
+  const M = ${JSON.stringify(mapObj)};
+  function map(url){
+    if(!url||typeof url!=='string') return url;
+    if(/^(blob:|data:)/.test(url)) return url;
+    // strip query/hash
+    const clean = url.split('?')[0].split('#')[0];
+    // try direct key
+    if(M[clean]) return M[clean];
+    // try stripping leading slash
+    const noSlash = clean.replace(/^\\//, '');
+    if(M[noSlash]) return M[noSlash];
+    // try extracting just the path after origin
+    try {
+      const u = new URL(url, location.href);
+      const p = u.pathname.replace(/^\\//, '');
+      if(M[p]) return M[p];
+    } catch(e){}
     return url;
   }
-  const origFetch = window.fetch;
-  window.fetch = function(input, init) {
-    if (typeof input === 'string') input = mapURL(input);
-    else if (input instanceof Request) {
-      const mapped = mapURL(input.url);
-      if (mapped !== input.url) input = new Request(mapped, input);
+  // patch fetch
+  const oFetch = window.fetch;
+  window.fetch = function(input, init){
+    if(typeof input==='string') input=map(input);
+    else if(input instanceof Request){
+      const m=map(input.url);
+      if(m!==input.url) input=new Request(m,input);
     }
-    return origFetch.call(this, input, init);
+    return oFetch.call(this,input,init);
   };
-  const origXHROpen = XMLHttpRequest.prototype.open;
-  XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-    return origXHROpen.call(this, method, mapURL(String(url)), ...rest);
+  // patch XHR
+  const oOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method,url,...rest){
+    return oOpen.call(this,method,map(String(url)),...rest);
   };
-  const origImage = window.Image;
-  window.Image = function(w, h) {
-    const img = new origImage(w, h);
-    const desc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
-    if (desc) Object.defineProperty(img, 'src', {
-      set(v) { desc.set.call(this, mapURL(v)); },
-      get() { return desc.get.call(this); }
+  // patch Image
+  const oImg = window.Image;
+  window.Image = function(w,h){
+    const img = new oImg(w,h);
+    const d = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src');
+    Object.defineProperty(img,'src',{
+      set(v){d.set.call(this,map(v));},
+      get(){return d.get.call(this);}
     });
     return img;
   };
-  const origAudio = window.Audio;
-  if (origAudio) window.Audio = function(src) {
-    return new origAudio(src ? mapURL(src) : src);
+  // patch Audio
+  const oAudio = window.Audio;
+  if(oAudio) window.Audio = function(src){ return new oAudio(src?map(src):src); };
+  // patch createElement for dynamic script/link/img tags
+  const oCreate = document.createElement.bind(document);
+  document.createElement = function(tag,...args){
+    const el = oCreate(tag,...args);
+    const t = tag.toLowerCase();
+    if(t==='img'||t==='script'||t==='audio'||t==='video'||t==='source'){
+      const d = Object.getOwnPropertyDescriptor(HTMLElement.prototype,'src') ||
+                Object.getOwnPropertyDescriptor(el.__proto__,'src');
+      if(d && d.set){
+        Object.defineProperty(el,'src',{
+          set(v){d.set.call(this,map(v));},
+          get(){return d.get.call(this);}
+        });
+      }
+    }
+    if(t==='link'){
+      const d = Object.getOwnPropertyDescriptor(HTMLLinkElement.prototype,'href');
+      if(d && d.set){
+        Object.defineProperty(el,'href',{
+          set(v){d.set.call(this,map(v));},
+          get(){return d.get.call(this);}
+        });
+      }
+    }
+    return el;
   };
 })();
 <\/script>`;
 
-      if (/<head[^>]*>/i.test(html)) {
-        html = html.replace(/(<head[^>]*>)/i, '$1' + interceptor);
-      } else {
-        html = interceptor + html;
-      }
+    // Inject interceptor as first thing in <head>
+    if (/<head[^>]*>/i.test(html)) {
+      html = html.replace(/(<head[^>]*>)/i, '$1' + interceptor);
+    } else {
+      html = interceptor + html;
+    }
 
-      setProgress(98);
-      setStatus('STARTING GAME...');
+    setProgress(98);
+    setStatus('STARTING...');
 
-      const finalBlob = new Blob([html], { type: 'text/html' });
-      const finalURL = URL.createObjectURL(finalBlob);
-      document.getElementById('game-frame').src = finalURL;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const frame = document.getElementById('game-frame');
+    frame.src = url;
 
+    frame.onload = () => {
       setProgress(100);
       document.getElementById('loading-screen').style.display = 'none';
       document.getElementById('game-container').style.display = 'block';
+    };
 
-    } catch (err) {
-      console.error(err);
-      showError(err.message);
-    }
+  } catch(err) {
+    console.error(err);
+    showError(err.message);
   }
+}
 
-  loadGame();
+loadGame();
 </script>
-
 </body>
 </html>
