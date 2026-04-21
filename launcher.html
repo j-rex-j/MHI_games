@@ -22,9 +22,68 @@
     * { box-sizing: border-box; }
 
     body {
-      background: var(--bg-color);
+      background: #000;
       font-family: 'Orbitron', sans-serif;
       color: #e8f7ff;
+    }
+
+    /* ===== ANIMATED SPACE BACKGROUND ===== */
+    .space-background {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(ellipse at center, #0a0a1a 0%, #050510 50%, #000000 100%);
+      z-index: -2;
+      pointer-events: none;
+    }
+
+    .stars-layer {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .star {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: #fff;
+      border-radius: 50%;
+      animation: twinkle 3s infinite;
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    .nebula {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.15;
+      mix-blend-mode: screen;
+      animation: nebulaDrift 20s ease-in-out infinite;
+    }
+
+    @keyframes nebulaDrift {
+      0%, 100% { transform: translate(0, 0); }
+      50% { transform: translate(30px, -50px); }
+    }
+
+    .nebula-purple {
+      background: radial-gradient(circle, rgba(123, 47, 255, 0.8), transparent);
+    }
+
+    .nebula-cyan {
+      background: radial-gradient(circle, rgba(0, 212, 255, 0.6), transparent);
+    }
+
+    .nebula-gold {
+      background: radial-gradient(circle, rgba(255, 215, 0, 0.5), transparent);
     }
 
     /* ===== SPLASH SCREEN ===== */
@@ -226,8 +285,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background:
-        radial-gradient(ellipse at center top, #0a1f4d 0%, #030812 50%, #000000 100%);
+      background: transparent;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -576,8 +634,15 @@
     }
   </style>
   <style>body { box-sizing: border-box; }</style>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js" type="text/javascript"></script>
  </head>
- <body><!-- SPLASH SCREEN -->
+ <body><!-- ANIMATED SPACE BACKGROUND -->
+  <div class="space-background">
+   <div class="stars-layer" id="starsLayer"></div>
+   <div class="nebula nebula-purple" style="width: 400px; height: 400px; top: 10%; left: 5%;"></div>
+   <div class="nebula nebula-cyan" style="width: 300px; height: 300px; top: 60%; right: 10%;"></div>
+   <div class="nebula nebula-gold" style="width: 250px; height: 250px; top: 40%; left: 50%;"></div>
+  </div><!-- SPLASH SCREEN -->
   <div id="splash-screen">
    <div class="splash-wrapper">
     <div class="grid-bg" aria-hidden="true"></div>
@@ -592,9 +657,9 @@
      </div>
     </div>
     <div class="accent-line" aria-hidden="true"></div>
-    <div class="image-container"><img id="heroImage" src="https://drive.google.com/thumbnail?id=1xdw4kmnCV8jy8Dud6jPnP81ZmW0FN3jn&amp;sz=w800" alt="Math Helper Infinite" loading="lazy" onerror="console.error('Image failed to load:', this.src); this.style.display='none'; document.getElementById('imageFallback').style.display='flex';">
-     <div id="imageFallback" class="image-fallback" style="display: none;">
-      <span>📐 Image could not be loaded</span>
+    <div class="image-container">
+     <img id="heroImage" src="https://drive.google.com/thumbnail?id=1xdw4kmnCV8jy8Dud6jPnP81ZmW0FN3jn&amp;sz=w800" alt="Math Helper Infinite" loading="lazy" onerror="console.error('Image failed to load:', this.src); this.style.display='none'; document.getElementById('imageFallback').style.display='flex';">
+     <div id="imageFallback" class="image-fallback" style="display: none;"><span>📐 Image could not be loaded</span>
      </div>
      <div class="image-shimmer" aria-hidden="true"></div>
     </div>
@@ -603,7 +668,8 @@
   <div id="games-screen">
    <header>
     <h1>🎮 Math Helper Games 🎮</h1>
-    <div id="nav-tabs"><button id="tab-all" class="nav-tab active" onclick="switchTab('all')">All Games</button> <button id="tab-favorites" class="nav-tab" onclick="switchTab('favorites')">⭐ Favorites</button>
+    <div id="nav-tabs">
+     <button id="tab-all" class="nav-tab active" onclick="switchTab('all')">All Games</button> <button id="tab-favorites" class="nav-tab" onclick="switchTab('favorites')">⭐ Favorites</button>
     </div>
    </header><input id="search" placeholder="Search the galaxy..." oninput="filterGames()">
    <div id="games-wrapper">
@@ -620,6 +686,19 @@
    </div>
   </div>
   <script>
+    // ===== GENERATE STARS =====
+    function generateStars() {
+      const starsLayer = document.getElementById('starsLayer');
+      for (let i = 0; i < 150; i++) {
+        const star = document.createElement('div');
+        star.className = 'star';
+        star.style.left = Math.random() * 100 + '%';
+        star.style.top = Math.random() * 100 + '%';
+        star.style.animationDelay = Math.random() * 3 + 's';
+        starsLayer.appendChild(star);
+      }
+    }
+
     // ===== SPLASH SCREEN ANIMATION =====
     function initSplashScreen() {
       // Generate floating math symbols
@@ -868,6 +947,7 @@
 
     // Initialize
     window.addEventListener('DOMContentLoaded', () => {
+      generateStars();
       initSplashScreen();
       loadFavorites();
       loadGames();
@@ -882,5 +962,5 @@
       }
     });
   </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9ccf996d14d6170b',t:'MTc3MDkzNjE0OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9efe76d635b05305',t:'MTc3Njc5NjI3MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
