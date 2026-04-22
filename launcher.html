@@ -811,9 +811,9 @@
       const owner = "beastcooper";
       const repo = "MHI_games";
       const branch = "master";
-      const basePath = "offline";
+      const basePaths = ["offline", "Multifile"];
 
-      const api = async (path = "") => {
+      const api = async (basePath, path = "") => {
         const fullPath = path ? `${basePath}/${path}` : basePath;
         const res = await fetch(
           `https://api.github.com/repos/${owner}/${repo}/contents/${fullPath}?ref=${branch}`
@@ -822,27 +822,30 @@
       };
 
       try {
-        const items = await api();
+        for (const basePath of basePaths) {
+          const items = await api(basePath);
 
-        if (!Array.isArray(items)) {
-          console.error("Failed to load games", items);
-          return;
-        }
-
-        for (const item of items) {
-          if (item.type === "file") {
-            const name = item.name.toLowerCase();
-            if (name.endsWith(".html") || name.endsWith(".htm")) {
-              addGame(item.name.replace(/\.(html|htm)$/i, ""), item.download_url);
-            }
+          if (!Array.isArray(items)) {
+            console.error("Failed to load games", items);
+            continue;
           }
-          if (item.type === "dir") {
-            const files = await api(item.name);
-            const index = files.find(f => {
-              const fname = f.name.toLowerCase();
-              return fname === "index.html" || fname === "index.htm";
-            });
-            if (index) addGame(item.name, index.download_url);
+
+          for (const item of items) {
+            if (item.type === "file") {
+              const name = item.name.toLowerCase();
+              if (name.endsWith(".html") || name.endsWith(".htm")) {
+                addGame(item.name.replace(/\.(html|htm)$/i, ""), item.download_url);
+              }
+            }
+            if (item.type === "dir") {
+              const files = await api(basePath, item.name);
+              if (!Array.isArray(files)) continue;
+              const index = files.find(f => {
+                const fname = f.name.toLowerCase();
+                return fname === "index.html" || fname === "index.htm";
+              });
+              if (index) addGame(item.name, index.download_url);
+            }
           }
         }
 

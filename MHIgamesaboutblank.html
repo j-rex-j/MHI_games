@@ -317,16 +317,17 @@
 
   <script>
     // ── Config ──────────────────────────────────────────────────────────────
-    const OWNER = 'beastcooper', REPO = 'MHI_games', BRANCH = 'master', BASE = 'offline';
+    const OWNER = 'beastcooper', REPO = 'MHI_games', BRANCH = 'master';
+    const BASES = ['offline', 'Multifile'];
 
     // Use jsDelivr as the primary URL — it has permissive CORS headers and
     // works cross-origin from any page including about:blank.
-    const JSDELIVR_BASE = `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${BRANCH}/${BASE}/`;
+    const JSDELIVR_BASE = (base) => `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${BRANCH}/${base}/`;
 
     // GitHub API (for directory listing) also works cross-origin.
     // Raw GitHub URLs sometimes block non-browser origins; jsDelivr is safer.
-    const GH_API = p =>
-      `https://api.github.com/repos/${OWNER}/${REPO}/contents/${p ? BASE+'/'+p : BASE}?ref=${BRANCH}`;
+    const GH_API = (base, p = '') =>
+      `https://api.github.com/repos/${OWNER}/${REPO}/contents/${p ? base+'/'+p : base}?ref=${BRANCH}`;
 
     // ── Fetch helper ─────────────────────────────────────────────────────────
     // Tries jsDelivr first (great CORS), falls back to raw GitHub.
@@ -363,21 +364,24 @@
     // ── Load game list ───────────────────────────────────────────────────────
     async function loadGames() {
       try {
-        const r = await safeFetch(GH_API());
-        const items = await r.json();
-        if (!Array.isArray(items)) throw new Error('Unexpected API response');
+        for (const base of BASES) {
+          const r = await safeFetch(GH_API(base));
+          const items = await r.json();
+          if (!Array.isArray(items)) throw new Error('Unexpected API response');
 
-        for (const item of items) {
-          if (item.type === 'file' && /\.(html|htm)$/i.test(item.name)) {
-            const key = item.name.replace(/\.(html|htm)$/i, '');
-            addGame(key, JSDELIVR_BASE + item.name, item.download_url);
-          }
-          if (item.type === 'dir') {
-            try {
-              const sub = await safeFetch(GH_API(item.name)).then(r => r.json());
-              const idx = sub.find(f => /^index\.(html|htm)$/i.test(f.name));
-              if (idx) addGame(item.name, JSDELIVR_BASE + item.name + '/index.html', idx.download_url);
-            } catch (e) { console.warn('Skipping dir', item.name, e.message); }
+          for (const item of items) {
+            if (item.type === 'file' && /\.(html|htm)$/i.test(item.name)) {
+              const key = item.name.replace(/\.(html|htm)$/i, '');
+              addGame(key, JSDELIVR_BASE(base) + item.name, item.download_url, base);
+            }
+            if (item.type === 'dir') {
+              try {
+                const sub = await safeFetch(GH_API(base, item.name)).then(r => r.json());
+                if (!Array.isArray(sub)) continue;
+                const idx = sub.find(f => /^index\.(html|htm)$/i.test(f.name));
+                if (idx) addGame(item.name, JSDELIVR_BASE(base) + item.name + '/index.html', idx.download_url, base);
+              } catch (e) { console.warn('Skipping dir', item.name, e.message); }
+            }
           }
         }
         allGames.sort((a, b) => a.key.localeCompare(b.key));
@@ -391,10 +395,10 @@
       }
     }
 
-    function addGame(key, url, fallbackUrl) {
+    function addGame(key, url, fallbackUrl, base) {
       if (allGames.some(g => g.key === key)) return;
       // Thumbnail: try jsDelivr for the PNG too
-      const imgUrl = JSDELIVR_BASE + key + '.png';
+      const imgUrl = JSDELIVR_BASE(base) + key + '.png';
       allGames.push({ key, url, fallbackUrl, imgUrl });
     }
 
