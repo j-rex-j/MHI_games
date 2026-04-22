@@ -866,11 +866,10 @@
     }
 
     async function launchGame(url) {
-      const res = await fetch(url);
-      const html = await res.text();
-      const win = window.open("about:blank");
-      win.document.write(html);
-      win.document.close();
+      const win = window.open(url, "_blank", "noopener,noreferrer");
+      if (!win) {
+        alert("Popup blocked. Please allow popups for this site.");
+      }
     }
 
     function filterCurrentGames() {
