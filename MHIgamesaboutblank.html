@@ -403,6 +403,14 @@
     }
 
     // ── Launch a game ────────────────────────────────────────────────────────
+    function withBaseHref(html, baseUrl) {
+      const baseTag = `<base href="${baseUrl}">`;
+      if (/<head[^>]*>/i.test(html)) {
+        return html.replace(/<head([^>]*)>/i, `<head$1>${baseTag}`);
+      }
+      return `${baseTag}${html}`;
+    }
+
     async function launchGame(game) {
       const win = window.open(game.url, '_blank', 'noopener,noreferrer');
       if (!win) {
