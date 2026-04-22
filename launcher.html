@@ -877,17 +877,9 @@
     }
 
     async function launchGame(url) {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const html = await res.text();
-        const win = window.open("", "_blank");
-        if (!win) throw new Error("Popup blocked. Please allow popups for this site.");
-        win.document.open();
-        win.document.write(withBaseHref(html, res.url || url));
-        win.document.close();
-      } catch (error) {
-        alert(`Could not launch game.\n\n${error.message}`);
+      const win = window.open(url, "_blank", "noopener,noreferrer");
+      if (!win) {
+        alert("Popup blocked. Please allow popups for this site.");
       }
     }
 
