@@ -811,9 +811,9 @@
       const owner = "beastcooper";
       const repo = "MHI_games";
       const branch = "master";
-      const basePath = "offline";
+      const basePaths = ["offline", "Multifile"];
 
-      const api = async (path = "") => {
+      const api = async (basePath, path = "") => {
         const fullPath = path ? `${basePath}/${path}` : basePath;
         const res = await fetch(
           `https://api.github.com/repos/${owner}/${repo}/contents/${fullPath}?ref=${branch}`
@@ -822,27 +822,30 @@
       };
 
       try {
-        const items = await api();
+        for (const basePath of basePaths) {
+          const items = await api(basePath);
 
-        if (!Array.isArray(items)) {
-          console.error("Failed to load games", items);
-          return;
-        }
-
-        for (const item of items) {
-          if (item.type === "file") {
-            const name = item.name.toLowerCase();
-            if (name.endsWith(".html") || name.endsWith(".htm")) {
-              addGame(item.name.replace(/\.(html|htm)$/i, ""), item.download_url);
-            }
+          if (!Array.isArray(items)) {
+            console.error("Failed to load games", items);
+            continue;
           }
-          if (item.type === "dir") {
-            const files = await api(item.name);
-            const index = files.find(f => {
-              const fname = f.name.toLowerCase();
-              return fname === "index.html" || fname === "index.htm";
-            });
-            if (index) addGame(item.name, index.download_url);
+
+          for (const item of items) {
+            if (item.type === "file") {
+              const name = item.name.toLowerCase();
+              if (name.endsWith(".html") || name.endsWith(".htm")) {
+                addGame(item.name.replace(/\.(html|htm)$/i, ""), item.download_url);
+              }
+            }
+            if (item.type === "dir") {
+              const files = await api(basePath, item.name);
+              if (!Array.isArray(files)) continue;
+              const index = files.find(f => {
+                const fname = f.name.toLowerCase();
+                return fname === "index.html" || fname === "index.htm";
+              });
+              if (index) addGame(item.name, index.download_url);
+            }
           }
         }
 
@@ -865,12 +868,20 @@
       });
     }
 
+    function escapeHtml(value) {
+      return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
     async function launchGame(url) {
-      const res = await fetch(url);
-      const html = await res.text();
-      const win = window.open("about:blank");
-      win.document.write(html);
-      win.document.close();
+      try {
+        const win = window.open("", "_blank");
+        if (!win) throw new Error("Popup blocked. Please allow popups for this site.");
+        const safeUrl = escapeHtml(url);
+        win.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Game Launcher</title><style>html,body{margin:0;height:100%;background:#000}iframe{border:0;width:100%;height:100%}</style></head><body><iframe src="${safeUrl}" allowfullscreen referrerpolicy="no-referrer"></iframe></body></html>`);
+        win.document.close();
+      } catch (error) {
+        alert(`Could not launch game.\n\n${error.message}`);
+      }
     }
 
     function filterCurrentGames() {
